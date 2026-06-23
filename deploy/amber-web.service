@@ -1,0 +1,22 @@
+# systemd unit for the Amber web client.
+# Install to /etc/systemd/system/amber-web.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now amber-web
+#
+# Assumes the repo is at /opt/amber-web, built with `npm ci && npm run build`,
+# and runs as user `amber`. Env (incl. AMBER_UPDATE_TOKEN) comes from .env.
+
+[Unit]
+Description=Amber web client (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=amber
+WorkingDirectory=/opt/amber-web
+EnvironmentFile=/opt/amber-web/.env
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
