@@ -2,6 +2,12 @@
 
 import { useState } from "react";
 import type { Settings } from "@/lib/settings";
+import {
+  CLOCK_POSITIONS,
+  DATE_FORMATS,
+  THEMES,
+  type ClockPosition,
+} from "@/lib/themes";
 
 /** The Escape-key settings overlay.
  *
@@ -37,6 +43,82 @@ export function SettingsPanel({
           </button>
         </header>
 
+        {/* ─────────── Appearance ─────────── */}
+        <p className="settings-section">Appearance</p>
+
+        <div className="field">
+          <span>Theme</span>
+          <div className="theme-grid">
+            {THEMES.map((t) => (
+              <button
+                type="button"
+                key={t.id}
+                className={`theme-chip theme-chip--${t.id}`}
+                aria-pressed={draft.theme === t.id}
+                onClick={() => set("theme", t.id)}
+                title={t.blurb}
+              >
+                <span className="theme-swatch" />
+                <span className="theme-name">{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <span>Clock position</span>
+          <div className="pos-grid" role="group" aria-label="Clock position">
+            {CLOCK_POSITIONS.map((pos: ClockPosition) => (
+              <button
+                type="button"
+                key={pos}
+                className="pos-cell"
+                aria-pressed={draft.clockPosition === pos}
+                aria-label={pos.replace("-", " ")}
+                onClick={() => set("clockPosition", pos)}
+              >
+                <span className="pos-dot" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="field">
+          <span>Date format</span>
+          <select
+            value={draft.dateFormat}
+            onChange={(e) => set("dateFormat", e.target.value as Settings["dateFormat"])}
+          >
+            {DATE_FORMATS.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="field-row">
+          <label className="field-check">
+            <input
+              type="checkbox"
+              checked={draft.clock24h}
+              onChange={(e) => set("clock24h", e.target.checked)}
+            />
+            <span>24-hour clock</span>
+          </label>
+          <label className="field-check">
+            <input
+              type="checkbox"
+              checked={draft.showSeconds}
+              onChange={(e) => set("showSeconds", e.target.checked)}
+            />
+            <span>Show seconds</span>
+          </label>
+        </div>
+
+        {/* ─────────── Connection ─────────── */}
+        <p className="settings-section">Connection</p>
+
         <label className="field">
           <span>Amber host</span>
           <input
@@ -45,32 +127,43 @@ export function SettingsPanel({
             onChange={(e) => set("host", e.target.value)}
             placeholder="ws://localhost:8000/ws"
             spellCheck={false}
-            autoFocus
           />
         </label>
 
-        <label className="field">
-          <span>Auth token</span>
+        <div className="field-row">
+          <label className="field">
+            <span>Auth token</span>
+            <input
+              type="password"
+              value={draft.token}
+              onChange={(e) => set("token", e.target.value)}
+              placeholder="(optional shared secret)"
+              spellCheck={false}
+            />
+          </label>
+          <label className="field">
+            <span>Update token</span>
+            <input
+              type="password"
+              value={draft.updateToken}
+              onChange={(e) => set("updateToken", e.target.value)}
+              placeholder="(voice self-update)"
+              spellCheck={false}
+            />
+          </label>
+        </div>
+
+        <label className="field-check">
           <input
-            type="password"
-            value={draft.token}
-            onChange={(e) => set("token", e.target.value)}
-            placeholder="(optional shared secret)"
-            spellCheck={false}
+            type="checkbox"
+            checked={draft.autoConnect}
+            onChange={(e) => set("autoConnect", e.target.checked)}
           />
+          <span>Connect automatically on wake</span>
         </label>
 
-        <label className="field">
-          <span>Update token</span>
-          <input
-            type="password"
-            value={draft.updateToken}
-            onChange={(e) => set("updateToken", e.target.value)}
-            placeholder="(authorizes voice self-update)"
-            spellCheck={false}
-          />
-          <small>Must match the host&rsquo;s AMBER_UPDATE_TOKEN. Lets you say “Amber, update yourself.”</small>
-        </label>
+        {/* ─────────── Voice ─────────── */}
+        <p className="settings-section">Voice</p>
 
         <label className="field">
           <span>Wake words</span>
@@ -108,24 +201,6 @@ export function SettingsPanel({
             />
           </label>
         </div>
-
-        <label className="field-check">
-          <input
-            type="checkbox"
-            checked={draft.clock24h}
-            onChange={(e) => set("clock24h", e.target.checked)}
-          />
-          <span>24-hour clock</span>
-        </label>
-
-        <label className="field-check">
-          <input
-            type="checkbox"
-            checked={draft.autoConnect}
-            onChange={(e) => set("autoConnect", e.target.checked)}
-          />
-          <span>Connect automatically on wake</span>
-        </label>
 
         <footer className="settings-foot">
           <button type="button" className="btn-ghost" onClick={onClose}>

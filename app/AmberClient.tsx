@@ -10,6 +10,7 @@ import { loadSettings, matchesWake, saveSettings, type Settings } from "@/lib/se
 import type { ConnState, Phase } from "@/lib/types";
 import { Clock } from "@/app/components/Clock";
 import { Orb } from "@/app/components/Orb";
+import { Background } from "@/app/components/Background";
 import { Conversation } from "@/app/components/Conversation";
 import { SettingsPanel } from "@/app/components/SettingsPanel";
 
@@ -366,8 +367,8 @@ export function AmberClient() {
   const active = phase !== "idle";
 
   return (
-    <main className="stage" data-phase={phase}>
-      <div className="ambient" data-phase={phase} aria-hidden />
+    <main className="stage" data-phase={phase} data-theme={settings.theme}>
+      <Background phase={phase} />
 
       <div className="topbar" data-active={active}>
         <span className={`conn conn--${connState}`}>
@@ -380,17 +381,25 @@ export function AmberClient() {
         </button>
       </div>
 
-      {/* Home: clock + orb. Recedes while a conversation is on screen. */}
-      <div className="center" data-active={active}>
-        <Clock clock24h={settings.clock24h} />
-        {activated ? (
-          <Orb phase={phase} />
-        ) : (
-          <button className="wake-cta" onClick={activate}>
-            <span className="wake-cta-ring" />
-            Tap to wake Amber
-          </button>
-        )}
+      {/* Home: the positioned clock + the centred orb. Recedes during a turn. */}
+      <div className="home" data-active={active}>
+        <div className="clock-anchor" data-pos={settings.clockPosition}>
+          <Clock
+            clock24h={settings.clock24h}
+            showSeconds={settings.showSeconds}
+            dateFormat={settings.dateFormat}
+          />
+        </div>
+        <div className="orb-home">
+          {activated ? (
+            <Orb phase={phase} />
+          ) : (
+            <button className="wake-cta" onClick={activate}>
+              <span className="wake-cta-ring" />
+              Tap to wake Amber
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Full-screen fluid conversation, fades in while talking to Amber. */}

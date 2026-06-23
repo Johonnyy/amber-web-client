@@ -1,6 +1,7 @@
 "use client";
 
 import type { Phase } from "@/lib/types";
+import { Background } from "@/app/components/Background";
 
 /** The full-screen, fluid conversation surface.
  *
@@ -30,12 +31,8 @@ export function Conversation({
       data-phase={phase}
       aria-hidden={!active}
     >
-      {/* drifting liquid light */}
-      <div className="liquid" aria-hidden>
-        <span className="blob blob-a" />
-        <span className="blob blob-b" />
-        <span className="blob blob-c" />
-      </div>
+      {/* the theme's own background, intensified while talking */}
+      <Background phase={phase} intense />
 
       <div className="convo-content">
         {/* What you said — hero while listening, a quiet caption while Amber replies */}

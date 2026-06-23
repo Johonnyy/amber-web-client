@@ -42,18 +42,36 @@ npm run build        # production build
 npm start            # serve the production build
 ```
 
-Point it at a running Amber backend in **Settings** (press <kbd>Esc</kbd>):
+Configure it in **Settings** (press <kbd>Esc</kbd>):
 
-- **Amber host** — the WebSocket URL, default `ws://localhost:8000/ws`
-- **Auth token** — the shared secret, if the backend requires one (sent as
-  `?token=`)
-- **Update token** — authorizes voice self-update (see below)
-- **Wake words** — comma-separated phrases
-- **End-of-speech silence / max utterance** — VAD timing
-- **24-hour clock**, **auto-connect on wake**
+- **Appearance** — pick a **theme** (see below), place the **clock** anywhere on a
+  3×3 grid, choose the **date format**, 24-hour clock, and seconds.
+- **Connection** — **Amber host** (WebSocket URL, default `ws://localhost:8000/ws`),
+  **auth token** (sent as `?token=`), **update token** (voice self-update), and
+  auto-connect on wake.
+- **Voice** — **wake words** (comma-separated) and end-of-speech / max-utterance
+  timing.
 
 Settings persist to `localStorage`, so they survive reloads and self-updates
 (they live in the browser, untouched by a server redeploy).
+
+## Themes
+
+Each theme is a whole-app skin — background, colours, typography, the status orb,
+and the talking-to-Amber view all change together:
+
+- **Aurora** — amber light drifting on charcoal (the default)
+- **Daylight** — clean, bright, minimal
+- **Midnight** — plain deep black
+- **Synthwave** — neon perspective grid + CRT scanlines
+- **Deep Space** — parallax starfield + nebula
+- **Terminal** — green phosphor CRT with a blinking caret
+- **Sunset** — warm, calm shifting gradient
+
+Themes are defined in CSS keyed off `data-theme="<id>"` ([app/globals.css](app/globals.css))
+and catalogued in [lib/themes.ts](lib/themes.ts); the shared effect markup is
+[app/components/Background.tsx](app/components/Background.tsx). Adding one is a new
+entry in `THEMES` plus a `[data-theme="…"]` block.
 
 ## Self-update from GitHub (by voice)
 

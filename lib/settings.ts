@@ -4,6 +4,8 @@
  * find and authenticate to an Amber backend lives here, plus the knobs that
  * tune the hands-free voice loop (wake words, end-of-speech timing).
  */
+import type { ClockPosition, DateFormat, ThemeId } from "@/lib/themes";
+
 export type Settings = {
   /** Amber WebSocket endpoint, e.g. ws://localhost:8000/ws */
   host: string;
@@ -16,8 +18,16 @@ export type Settings = {
   silenceMs: number;
   /** Hard cap (ms) on a single recorded utterance, in case VAD never fires. */
   maxUtteranceMs: number;
+  /** Whole-app skin (background effect, colors, typography, conversation look). */
+  theme: ThemeId;
+  /** Where the clock sits on screen (3×3 grid + centre). */
+  clockPosition: ClockPosition;
+  /** How the date reads under the time (or hidden). */
+  dateFormat: DateFormat;
   /** Show the clock in 24-hour format. */
   clock24h: boolean;
+  /** Include seconds in the time. */
+  showSeconds: boolean;
   /** Activate the mic + connect automatically once the screen is woken. */
   autoConnect: boolean;
   /** Secret sent to this client's own /api/update endpoint to authorize a
@@ -33,7 +43,11 @@ export const DEFAULTS: Settings = {
   wakeWords: "amber, hey amber, ok amber",
   silenceMs: 1300,
   maxUtteranceMs: 15000,
+  theme: "aurora",
+  clockPosition: "center",
+  dateFormat: "full",
   clock24h: false,
+  showSeconds: false,
   autoConnect: true,
   updateToken: "",
 };

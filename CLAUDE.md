@@ -46,7 +46,26 @@ idle ──(wake word)──► listening ──(VAD silence)──► thinking 
   blobs + large text: your words appear *live* as you speak (interim Web Speech
   transcript), then Amber's reply streams in sentence by sentence, each blurring
   softly into place.
-- `app/components/SettingsPanel.tsx` — the Escape-key settings overlay.
+- `app/components/Background.tsx` — the shared **themed background**: renders every
+  effect layer (aurora blobs, synthwave grid, starfield, scanlines, gradient
+  wash); CSS picks which show per theme. Used on the home screen and again inside
+  the conversation with `intense`.
+- `app/components/SettingsPanel.tsx` — the Escape-key settings overlay (Appearance
+  / Connection / Voice sections, theme picker, 3×3 clock-position grid).
+
+## Themes & layout
+
+Themes are whole-app skins keyed off `data-theme="<id>"` on the stage. `lib/themes.ts`
+is the catalog (`THEMES`, `CLOCK_POSITIONS`, `DATE_FORMATS` + `dateOptions`); all the
+actual styling is `[data-theme="…"]` blocks in `app/globals.css`. A theme overrides
+CSS variables — `--bg`/`--bg-2`, the generic accent `--amber*` (the orb and
+conversation colours key off it), `--glow`, `--scrim`, `--font-app`/`--font-clock` —
+and toggles which `.fx-*` background layers display. So restyling "literally
+everything including the conversation" mostly falls out of variable overrides plus
+a couple of per-theme touches (retro glow, terminal caret). The clock is absolutely
+positioned by `.clock-anchor[data-pos="…"]`; the orb stays centred. To add a theme:
+append to `THEMES` and add a `[data-theme="<id>"]` block (variables + which `.fx-*`
+layers to show).
 - `app/globals.css` — the whole bespoke theme (amber-on-near-black) and the orb /
   ambient animations.
 - `lib/connection.ts` — `AmberConnection`: the WebSocket + `MSG` protocol

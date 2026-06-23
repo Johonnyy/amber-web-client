@@ -1,15 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { dateOptions, type DateFormat } from "@/lib/themes";
 
-/** The centerpiece: a large live clock with the date beneath it.
+/** The clock — time over an optional date line. Format is fully driven by
+ *  settings; *where* it sits on screen is handled by the wrapper in AmberClient.
  *
- * Renders nothing until mounted on the client (the time isn't known during SSR,
- * so rendering it server-side would cause a hydration mismatch).
+ * Seeded on the client; SSR renders a placeholder the client replaces, so the
+ * time/date nodes suppress hydration warnings.
  */
-export function Clock({ clock24h }: { clock24h: boolean }) {
-  // Seeded on the client; SSR renders a placeholder time that the client
-  // immediately replaces, so the time/date nodes suppress hydration warnings.
+export function Clock({
+  clock24h,
+  showSeconds,
+  dateFormat,
+}: {
+  clock24h: boolean;
+  showSeconds: boolean;
+  dateFormat: DateFormat;
+}) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -20,22 +28,23 @@ export function Clock({ clock24h }: { clock24h: boolean }) {
   const time = now.toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
+    second: showSeconds ? "2-digit" : undefined,
     hour12: !clock24h,
   });
-  const date = now.toLocaleDateString([], {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+
+  const dOpts = dateOptions(dateFormat);
+  const date = dOpts ? now.toLocaleDateString([], dOpts) : "";
 
   return (
     <div className="clock" suppressHydrationWarning>
       <time className="clock-time" suppressHydrationWarning>
         {time}
       </time>
-      <div className="clock-date" suppressHydrationWarning>
-        {date}
-      </div>
+      {date && (
+        <div className="clock-date" suppressHydrationWarning>
+          {date}
+        </div>
+      )}
     </div>
   );
 }
