@@ -1,0 +1,38 @@
+# systemd unit for the kiosk *display* — launches Chromium full-screen at the
+# Amber web client. This is the SECOND unit on a kiosk box: amber-web.service
+# serves the page (npm run start, port 3000); this one shows it.
+#
+# Install to /etc/systemd/system/amber-web-kiosk.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now amber-web-kiosk
+#
+# Runs in the logged-in desktop user's graphical session (set User= and DISPLAY to
+# match your auto-login user — see deploy/README.md "Kiosk / Pi deployment").
+
+[Unit]
+Description=Amber web client kiosk (Chromium)
+# Needs the desktop/X session up, not just the network.
+After=network-online.target graphical.target
+Wants=network-online.target
+Requires=graphical.target
+
+[Service]
+Type=simple
+User=johnny
+# The X display the desktop session owns. XAUTHORITY lets Chromium reach it.
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/johnny/.Xauthority
+# Absolute path — systemd does not resolve PATH for ExecStart. On Raspberry Pi OS
+# the binary is /usr/bin/chromium-browser; on Debian/Ubuntu it may be
+# /usr/bin/chromium. Adjust to match `which chromium-browser`.
+ExecStart=/usr/bin/chromium-browser --kiosk --noerror-dialogs \
+  --disable-infobars --disable-session-crashed-bubble --check-for-update-interval=31536000 \
+  http://localhost:3000
+# Respawn the browser if it dies (or is closed) — but rate-limit so a hard crash
+# loop backs off instead of thrashing the box.
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=graphical.target

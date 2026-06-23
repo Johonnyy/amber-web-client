@@ -84,6 +84,39 @@ function watchAndReload(before: string): void {
   window.setTimeout(poll, 6000); // let the build get going before first check
 }
 
+/** Turn the kiosk display on or off via the host (`/api/screen` runs the
+ *  configured `xset` command). Returns a short status for Amber to speak. */
+export async function setScreen(
+  state: "on" | "off",
+  token: string,
+): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch("/api/screen", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { "x-amber-update-token": token } : {}),
+      },
+      body: JSON.stringify({ state }),
+    });
+  } catch (e) {
+    return `Couldn't reach the screen control: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  if (res.status === 401) {
+    return "Screen control was rejected — the token is missing or wrong (set it in Settings).";
+  }
+  if (res.status === 501) {
+    return `Turning the screen ${state} isn't set up on this device.`;
+  }
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 200);
+    return `Couldn't turn the screen ${state} (HTTP ${res.status})${detail ? ": " + detail : ""}.`;
+  }
+  return `Screen turned ${state}.`;
+}
+
 /** Build the client's tool set. `getUpdateToken` is read live so a token edited
  *  in Settings takes effect without re-registering. */
 export function buildClientTools(getUpdateToken: () => string): ClientTool[] {
@@ -111,6 +144,29 @@ export function buildClientTools(getUpdateToken: () => string): ClientTool[] {
         } catch (e) {
           return `Couldn't read the version: ${e instanceof Error ? e.message : String(e)}.`;
         }
+      },
+    },
+    {
+      name: "set_screen",
+      description:
+        "Turn this device's display/screen/monitor on or off. Use when the user " +
+        "asks to turn the screen off, turn it on, wake the display, or sleep the " +
+        "screen. Pass state='off' or state='on'.",
+      input_schema: {
+        type: "object",
+        properties: {
+          state: {
+            type: "string",
+            enum: ["on", "off"],
+            description: "Desired display state: 'on' or 'off'.",
+          },
+        },
+        required: ["state"],
+      },
+      run: async (input) => {
+        const state = input?.state === "on" ? "on" : input?.state === "off" ? "off" : null;
+        if (!state) return "I need to know whether to turn the screen on or off.";
+        return setScreen(state, getUpdateToken());
       },
     },
   ];

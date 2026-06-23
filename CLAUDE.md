@@ -80,12 +80,17 @@ layers to show).
 - `lib/settings.ts` — `Settings` type, defaults, `localStorage` load/save, wake
   matching.
 - `lib/clientTools.ts` — the **client-declared tools** Amber can call by voice:
-  `update` (self-update from GitHub) and `version`. `triggerSelfUpdate` POSTs
-  `/api/update`, then polls `/api/version` and reloads when the new build is live.
+  `update` (self-update from GitHub), `version`, and `set_screen` (turn the kiosk
+  display on/off). `triggerSelfUpdate` POSTs `/api/update`, then polls
+  `/api/version` and reloads when the new build is live; `setScreen` POSTs
+  `/api/screen`.
 - `lib/types.ts` — `Phase`, `ConnState`.
 - `app/api/version/route.ts` — GET: current git commit/branch/subject of the host.
 - `app/api/update/route.ts` — POST: spawns the updater detached; optional
   `AMBER_UPDATE_TOKEN` gate. See `scripts/self-update.sh` and `deploy/README.md`.
+- `app/api/screen/route.ts` — POST `{state}`: runs the configured `xset` command
+  (`AMBER_SCREEN_OFF_CMD`/`AMBER_SCREEN_ON_CMD`) on the host; reuses the
+  `AMBER_UPDATE_TOKEN` gate. Needs X-display access — see `deploy/README.md`.
 
 ## Self-update (the client tool half of the protocol)
 
