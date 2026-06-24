@@ -272,7 +272,15 @@ export function AmberClient() {
     if (activated) return;
     setActivated(true);
 
-    clientTools.current = buildClientTools(() => settingsRef.current.updateToken);
+    clientTools.current = buildClientTools(() => settingsRef.current.updateToken, {
+      // A successful update reloads the page; this fires on failure/timeout so the
+      // update overlay is released and the reason is shown instead of hanging.
+      onSettled: ({ ok, message }) => {
+        if (ok) return;
+        setUpdating(false);
+        setError(message);
+      },
+    });
 
     audio.current = new AudioQueue();
     audio.current.onStateChange = (isPlaying) => {

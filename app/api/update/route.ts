@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,15 @@ export async function POST(request: Request) {
   const cmd = process.env.AMBER_UPDATE_CMD;
   const script =
     process.env.AMBER_UPDATE_SCRIPT || path.join(process.cwd(), "scripts", "self-update.sh");
+
+  // Mark the update in-flight *now*, before the (detached) updater starts, so a
+  // `done`/`failed` marker left by a previous run can't make the browser's status
+  // poll resolve early. The updater overwrites this with its own progress.
+  try {
+    writeFileSync(path.join(process.cwd(), ".self-update.status"), "building");
+  } catch {
+    /* non-fatal: the version-commit fallback still drives the client */
+  }
 
   try {
     const child = cmd

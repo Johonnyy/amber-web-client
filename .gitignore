@@ -24,8 +24,9 @@
 .DS_Store
 *.pem
 
-# self-update log
+# self-update log + progress marker
 .self-update.log
+.self-update.status
 
 # debug
 npm-debug.log*

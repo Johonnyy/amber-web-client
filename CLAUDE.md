@@ -81,13 +81,18 @@ layers to show).
   matching.
 - `lib/clientTools.ts` — the **client-declared tools** Amber can call by voice:
   `update` (self-update from GitHub), `version`, and `set_screen` (turn the kiosk
-  display on/off). `triggerSelfUpdate` POSTs `/api/update`, then polls
-  `/api/version` and reloads when the new build is live; `setScreen` POSTs
-  `/api/screen`.
+  display on/off). `triggerSelfUpdate` POSTs `/api/update`, then watches the update
+  to a terminal state: it reloads when `/api/version` reports the rebuilt server is
+  live, but settles via `hooks.onSettled` if `/api/update/status` reports `failed`
+  or the deadline passes — so the update overlay never hangs forever. `setScreen`
+  POSTs `/api/screen`.
 - `lib/types.ts` — `Phase`, `ConnState`.
 - `app/api/version/route.ts` — GET: current git commit/branch/subject of the host.
-- `app/api/update/route.ts` — POST: spawns the updater detached; optional
-  `AMBER_UPDATE_TOKEN` gate. See `scripts/self-update.sh` and `deploy/README.md`.
+- `app/api/update/route.ts` — POST: seeds `.self-update.status` to `building`, then
+  spawns the updater detached; optional `AMBER_UPDATE_TOKEN` gate. See
+  `scripts/self-update.sh` and `deploy/README.md`.
+- `app/api/update/status/route.ts` — GET: the updater's progress
+  (`building`/`done`/`failed`/`idle`) + a log tail, for the client's update watcher.
 - `app/api/screen/route.ts` — POST `{state}`: runs the configured `xset` command
   (`AMBER_SCREEN_OFF_CMD`/`AMBER_SCREEN_ON_CMD`) on the host; reuses the
   `AMBER_UPDATE_TOKEN` gate. Needs X-display access — see `deploy/README.md`.
@@ -101,6 +106,13 @@ bare (`update`) and arrive `client_`-prefixed (`client_update`). The `update`
 tool rebuilds + restarts the host and reloads the page — so "Amber, update
 yourself" ships a new version hands-free. Server-side config is all env
 (`AMBER_UPDATE_TOKEN`, `AMBER_UPDATE_CMD`, …); see `.env.example`.
+
+`scripts/self-update.sh` writes a one-word progress marker to `.self-update.status`
+(`building` → `done`/`failed`, the latter via an `ERR` trap) that the client polls
+through `/api/update/status`, so a failed or no-op ("already latest") update clears
+the overlay with a reason instead of spinning. It deploys **this clone's current
+branch by default** (`AMBER_UPDATE_BRANCH` overrides) — don't reintroduce a
+hardcoded `main`, which fails on this `master` repo and leaves the update half-done.
 
 ## The protocol is the contract
 

@@ -30,10 +30,30 @@ export async function fetchVersion(): Promise<VersionInfo> {
   return (await res.json()) as VersionInfo;
 }
 
-/** Kick off a self-update on the server and, in the background, reload the page
- *  once the rebuilt server reports a new commit. Returns immediately with a
- *  human-readable status for Amber to speak. */
-export async function triggerSelfUpdate(token: string): Promise<string> {
+/** How the self-update ended, for the caller to act on (clear the overlay, speak
+ *  the outcome). `ok` is true only when a new build is live and we're reloading. */
+export type UpdateOutcome = { ok: boolean; message: string };
+
+export type UpdateHooks = {
+  /** Called once when the update reaches a terminal state (success, failure, or
+   *  timeout). On success the page reloads, so this fires mainly for the failure
+   *  paths the UI needs to recover from. */
+  onSettled?: (outcome: UpdateOutcome) => void;
+};
+
+const UPDATE_DEADLINE_MS = 6 * 60 * 1000; // give the build up to 6 minutes
+const POLL_MS = 4000;
+
+/** Kick off a self-update on the server and watch it to a terminal state in the
+ *  background: reload once the rebuilt server is live, or report failure/timeout
+ *  via `hooks.onSettled` so the UI never stays stuck on the update screen. Returns
+ *  immediately with a human-readable status for Amber to speak. */
+export async function triggerSelfUpdate(
+  token: string,
+  hooks: UpdateHooks = {},
+): Promise<string> {
+  const settle = (ok: boolean, message: string) => hooks.onSettled?.({ ok, message });
+
   let before = "";
   try {
     before = (await fetchVersion()).commit;
@@ -48,40 +68,86 @@ export async function triggerSelfUpdate(token: string): Promise<string> {
       headers: token ? { "x-amber-update-token": token } : {},
     });
   } catch (e) {
-    return `Couldn't reach the update service: ${e instanceof Error ? e.message : String(e)}`;
+    const msg = `Couldn't reach the update service: ${e instanceof Error ? e.message : String(e)}`;
+    settle(false, msg); // never started — release the overlay now
+    return msg;
   }
 
   if (res.status === 401) {
-    return "The update was rejected — the update token is missing or wrong (set it in Settings).";
+    const msg = "The update was rejected — the update token is missing or wrong (set it in Settings).";
+    settle(false, msg);
+    return msg;
   }
   if (!res.ok) {
     const detail = (await res.text().catch(() => "")).slice(0, 200);
-    return `Update failed to start (HTTP ${res.status})${detail ? ": " + detail : ""}.`;
+    const msg = `Update failed to start (HTTP ${res.status})${detail ? ": " + detail : ""}.`;
+    settle(false, msg);
+    return msg;
   }
 
-  watchAndReload(before);
+  watchUpdate(before, hooks);
   return "Update started — pulling the latest from GitHub and rebuilding. I'll refresh the screen once the new version is live.";
 }
 
-/** Poll the version endpoint until the commit changes (the rebuilt server is up),
- *  then reload so the running page picks up the new client code. */
-function watchAndReload(before: string): void {
+/** Poll the update's progress to a terminal state. Two signals, checked together:
+ *
+ *  - `/api/update/status` reports `failed` (build/restart error, e.g. a bad
+ *    branch) — stop and surface it, instead of waiting out the deadline.
+ *  - `/api/version` responding with a *changed* commit means the rebuilt server is
+ *    back up with new code → reload. This is the reliable "it's live" signal: the
+ *    endpoint only answers once the new server is serving.
+ *
+ *  A `done` status with the *same* commit (a no-op "already latest" rebuild) still
+ *  resolves once the server is reachable again, so that case clears too. If neither
+ *  fires within the deadline we settle as a timeout rather than spin forever. */
+function watchUpdate(before: string, hooks: UpdateHooks): void {
   if (typeof window === "undefined") return;
-  const deadline = Date.now() + 6 * 60 * 1000; // give the build up to 6 minutes
+  const settle = (ok: boolean, message: string) => hooks.onSettled?.({ ok, message });
+  const deadline = Date.now() + UPDATE_DEADLINE_MS;
+
   const poll = async () => {
-    if (Date.now() > deadline) return;
+    if (Date.now() > deadline) {
+      settle(
+        false,
+        "The update is taking longer than expected. It may still finish — try reloading in a minute.",
+      );
+      return;
+    }
+
+    let status = "";
+    try {
+      const r = await fetch("/api/update/status", { cache: "no-store" });
+      if (r.ok) status = String((await r.json()).state ?? "");
+    } catch {
+      /* status endpoint unavailable — fall back to the version check below */
+    }
+
+    if (status === "failed") {
+      settle(
+        false,
+        "The update failed while rebuilding — the previous version is still running. Check the update log on the host.",
+      );
+      return;
+    }
+
+    // The rebuilt server coming back is the trustworthy success signal.
     try {
       const { commit } = await fetchVersion();
-      if (commit && commit !== before) {
-        window.location.reload();
-        return;
+      if (commit) {
+        const newCommit = before !== "" && commit !== before;
+        if (newCommit || status === "done") {
+          window.location.reload();
+          return;
+        }
       }
     } catch {
       /* server is mid-restart — keep polling */
     }
-    window.setTimeout(poll, 4000);
+
+    window.setTimeout(poll, POLL_MS);
   };
-  window.setTimeout(poll, 6000); // let the build get going before first check
+
+  window.setTimeout(poll, 6000); // let the build get going before the first check
 }
 
 /** Turn the kiosk display on or off via the host (`/api/screen` runs the
@@ -118,8 +184,13 @@ export async function setScreen(
 }
 
 /** Build the client's tool set. `getUpdateToken` is read live so a token edited
- *  in Settings takes effect without re-registering. */
-export function buildClientTools(getUpdateToken: () => string): ClientTool[] {
+ *  in Settings takes effect without re-registering. `hooks.onSettled` lets the UI
+ *  recover the update screen when a self-update fails or times out (success reloads
+ *  the page). */
+export function buildClientTools(
+  getUpdateToken: () => string,
+  hooks: UpdateHooks = {},
+): ClientTool[] {
   return [
     {
       name: "update",
@@ -128,7 +199,7 @@ export function buildClientTools(getUpdateToken: () => string): ClientTool[] {
         "newest code on the host, rebuild, restart, and reload the screen. Use when " +
         "the user asks to update, upgrade, or pull the latest version of the client/app/screen.",
       input_schema: { type: "object", properties: {} },
-      run: async () => triggerSelfUpdate(getUpdateToken()),
+      run: async () => triggerSelfUpdate(getUpdateToken(), hooks),
     },
     {
       name: "version",
