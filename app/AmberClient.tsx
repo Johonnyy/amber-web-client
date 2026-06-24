@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AmberConnection, MSG, type Frame } from "@/lib/connection";
 import { buildClientTools, type ClientTool } from "@/lib/clientTools";
+import { buildDisplayTools, type DisplayBlock } from "@/lib/displayTools";
 import { AudioQueue } from "@/lib/audioQueue";
 import { MicRecorder } from "@/lib/recorder";
 import { SpeechEngine } from "@/lib/speech";
 import { loadSettings, matchesWake, saveSettings, type Settings } from "@/lib/settings";
 import type { ConnState, Phase } from "@/lib/types";
 import { Clock } from "@/app/components/Clock";
-import { Orb } from "@/app/components/Orb";
 import { Background } from "@/app/components/Background";
 import { Conversation } from "@/app/components/Conversation";
 import { SettingsPanel } from "@/app/components/SettingsPanel";
+import { StatRow } from "@/app/components/StatRow";
 
 const now = () => performance.now();
 const VAD_TICK_MS = 150;
@@ -42,6 +43,9 @@ export function AmberClient() {
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false); // self-update in progress
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [display, setDisplay] = useState<DisplayBlock[]>([]); // rich widgets Amber renders this turn
+  const [latency, setLatency] = useState<number | null>(null); // ms, utterance → first spoken sentence
+  const [memoryCount, setMemoryCount] = useState(0); // facts Amber drew on this turn (advisory)
 
   const conn = useRef<AmberConnection | null>(null);
   const audio = useRef<AudioQueue | null>(null);
@@ -66,6 +70,10 @@ export function AmberClient() {
   const turnActive = useRef(false); // a reply is streaming (thinking or speaking)
   const lingerTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // reply hold-on-screen
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnSentAt = useRef(0); // when the utterance went out — for latency to first sentence
+  const turnTimed = useRef(false); // latency already recorded for the in-flight turn
+  const displaySeq = useRef(0); // monotonic id for display blocks
+  const taps = useRef<number[]>([]); // recent tap timestamps (5-tap-to-open-settings)
 
   const setPhaseSafe = useCallback((p: Phase) => {
     phaseRef.current = p;
@@ -104,6 +112,8 @@ export function AmberClient() {
     }
     turnActive.current = true;
     const buf = await blob.arrayBuffer();
+    turnSentAt.current = now(); // start the clock for time-to-first-sentence
+    turnTimed.current = false;
     conn.current.sendAudio(buf);
   }, [clearVad, setPhaseSafe]);
 
@@ -144,6 +154,7 @@ export function AmberClient() {
     setTranscript("");
     setLiveTranscript("");
     setSentences([]);
+    setDisplay([]); // a new question wipes the previous answer's widgets
     setPhaseSafe("listening");
     heardSpeech.current = false;
     captureStart.current = now();
@@ -218,6 +229,11 @@ export function AmberClient() {
           if (msg.active) setPhaseSafe("thinking");
           break;
         case MSG.AUDIO_CHUNK:
+          // First spoken sentence of the turn — record perceived latency.
+          if (!turnTimed.current && turnSentAt.current) {
+            turnTimed.current = true;
+            setLatency(Math.round(now() - turnSentAt.current));
+          }
           if (msg.text) {
             const line = String(msg.text).trim();
             setSentences((s) => [...s, line]);
@@ -227,12 +243,16 @@ export function AmberClient() {
           turnActive.current = false;
           if (!audio.current?.isActive) finishTurn();
           break;
+        case MSG.MEMORY:
+          // Advisory: surface how many facts Amber is drawing on (stat row).
+          setMemoryCount(Array.isArray(msg.items) ? msg.items.length : 0);
+          break;
         case MSG.ERROR:
           setError(msg.message || "Something went wrong this turn.");
           audio.current?.stop();
           finishTurn();
           break;
-        // MEMORY and any future additive frames are ignored — advisory only.
+        // Any future additive frames are ignored — advisory only.
       }
     },
     [dispatchTool, finishTurn, setPhaseSafe],
@@ -272,15 +292,22 @@ export function AmberClient() {
     if (activated) return;
     setActivated(true);
 
-    clientTools.current = buildClientTools(() => settingsRef.current.updateToken, {
-      // A successful update reloads the page; this fires on failure/timeout so the
-      // update overlay is released and the reason is shown instead of hanging.
-      onSettled: ({ ok, message }) => {
-        if (ok) return;
-        setUpdating(false);
-        setError(message);
-      },
-    });
+    // Push a rich-display block onto the conversation surface (functional updater,
+    // so `push` is stable and needs no deps). Cleared on the next wake.
+    const push = (b: Omit<DisplayBlock, "id">) =>
+      setDisplay((d) => [...d, { id: displaySeq.current++, ...b }]);
+    clientTools.current = [
+      ...buildClientTools(() => settingsRef.current.updateToken, {
+        // A successful update reloads the page; this fires on failure/timeout so the
+        // update overlay is released and the reason is shown instead of hanging.
+        onSettled: ({ ok, message }) => {
+          if (ok) return;
+          setUpdating(false);
+          setError(message);
+        },
+      }),
+      ...buildDisplayTools(push, () => setDisplay([])),
+    ];
 
     audio.current = new AudioQueue();
     audio.current.onStateChange = (isPlaying) => {
@@ -364,32 +391,50 @@ export function AmberClient() {
     [activated, connect],
   );
 
-  // ───────────────────────── render ─────────────────────────
-  const connLabel: Record<ConnState, string> = {
-    disconnected: "offline",
-    connecting: "connecting…",
-    connected: "online",
-    error: "error",
-  };
+  // Appearance settings apply instantly (no Save): a pure-render patch that
+  // persists immediately and never touches the connection. Connection/voice
+  // settings still go through the draft + Save path in the panel.
+  const onLiveChange = useCallback((patch: Partial<Settings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      settingsRef.current = next;
+      saveSettings(next);
+      return next;
+    });
+  }, []);
 
+  // Five quick taps anywhere (away from controls) open Settings — the gear button
+  // is gone. Uses pointer events so it works on the kiosk touchscreen and mouse.
+  const onStageTap = useCallback((e: React.PointerEvent) => {
+    if (
+      (e.target as HTMLElement).closest(
+        "button, a, input, select, textarea, label, .settings, .wake-cta",
+      )
+    ) {
+      return; // taps on interactive elements don't count
+    }
+    const t = now();
+    taps.current = [...taps.current.filter((x) => t - x < 1500), t];
+    if (taps.current.length >= 5) {
+      taps.current = [];
+      setSettingsOpen(true);
+    }
+  }, []);
+
+  // ───────────────────────── render ─────────────────────────
   const active = phase !== "idle";
+  const micArmed = activated && !unsupported;
 
   return (
-    <main className="stage" data-phase={phase} data-theme={settings.theme}>
-      <Background phase={phase} />
+    <main
+      className="stage"
+      data-phase={phase}
+      data-theme={settings.theme}
+      onPointerUp={onStageTap}
+    >
+      <Background phase={phase} theme={settings.theme} />
 
-      <div className="topbar" data-active={active}>
-        <span className={`conn conn--${connState}`}>
-          <span className="conn-dot" />
-          {connLabel[connState]}
-          {statusNote ? ` · ${statusNote}` : ""}
-        </span>
-        <button className="gear" onClick={() => setSettingsOpen(true)} aria-label="Settings">
-          ⚙
-        </button>
-      </div>
-
-      {/* Home: the positioned clock + the centred orb. Recedes during a turn. */}
+      {/* Home: the positioned clock. Recedes during a turn. */}
       <div className="home" data-active={active}>
         <div className="clock-anchor" data-pos={settings.clockPosition}>
           <Clock
@@ -398,23 +443,23 @@ export function AmberClient() {
             dateFormat={settings.dateFormat}
           />
         </div>
-        <div className="orb-home">
-          {activated ? (
-            <Orb phase={phase} />
-          ) : (
+        {!activated && (
+          <div className="orb-home">
             <button className="wake-cta" onClick={activate}>
               <span className="wake-cta-ring" />
               Tap to wake Amber
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Full-screen fluid conversation, fades in while talking to Amber. */}
       <Conversation
         phase={phase}
+        theme={settings.theme}
         you={transcript || liveTranscript}
         sentences={sentences}
+        blocks={display}
         error={error}
       />
 
@@ -424,9 +469,14 @@ export function AmberClient() {
         </div>
       )}
 
-      <div className="hint" data-active={active}>
-        Press Esc for settings
-      </div>
+      <StatRow
+        connState={connState}
+        note={statusNote}
+        latency={latency}
+        micArmed={micArmed}
+        facts={memoryCount}
+        active={active}
+      />
 
       {updating && (
         <div className="updating">
@@ -440,6 +490,7 @@ export function AmberClient() {
         <SettingsPanel
           settings={settings}
           onSave={onSaveSettings}
+          onLiveChange={onLiveChange}
           onClose={() => setSettingsOpen(false)}
         />
       )}

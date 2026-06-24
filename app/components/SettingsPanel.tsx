@@ -9,24 +9,39 @@ import {
   type ClockPosition,
 } from "@/lib/themes";
 
-/** The Escape-key settings overlay.
+/** The settings overlay (opened by 5 taps anywhere, or Escape).
  *
- * Edits a local draft so changes aren't applied until Save; on Save the parent
- * persists them and reconnects if the endpoint changed. Cancel/Escape discards.
+ * Two kinds of settings:
+ *  - **Appearance** (theme, clock, date) applies *instantly* via `onLiveChange` —
+ *    pure-render changes you can preview without saving — and is read straight
+ *    from the live `settings` prop.
+ *  - **Connection / Voice** edits a local draft and only commits on Save (these
+ *    can trigger a reconnect, so they shouldn't fire on every keystroke).
+ * Cancel/Escape discards the unsaved draft; live appearance changes already stuck.
  */
 export function SettingsPanel({
   settings,
   onSave,
+  onLiveChange,
   onClose,
 }: {
   settings: Settings;
   onSave: (s: Settings) => void;
+  onLiveChange: (patch: Partial<Settings>) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<Settings>(settings);
 
+  // Draft setter for save-required (connection/voice) fields.
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
+
+  // Live setter for appearance fields: apply+persist immediately, and keep the
+  // draft in sync so Save (which commits the draft) doesn't clobber the change.
+  const live = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    setDraft((d) => ({ ...d, [key]: value }));
+    onLiveChange({ [key]: value } as Partial<Settings>);
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,8 +69,8 @@ export function SettingsPanel({
                 type="button"
                 key={t.id}
                 className={`theme-chip theme-chip--${t.id}`}
-                aria-pressed={draft.theme === t.id}
-                onClick={() => set("theme", t.id)}
+                aria-pressed={settings.theme === t.id}
+                onClick={() => live("theme", t.id)}
                 title={t.blurb}
               >
                 <span className="theme-swatch" />
@@ -73,9 +88,9 @@ export function SettingsPanel({
                 type="button"
                 key={pos}
                 className="pos-cell"
-                aria-pressed={draft.clockPosition === pos}
+                aria-pressed={settings.clockPosition === pos}
                 aria-label={pos.replace("-", " ")}
-                onClick={() => set("clockPosition", pos)}
+                onClick={() => live("clockPosition", pos)}
               >
                 <span className="pos-dot" />
               </button>
@@ -86,8 +101,8 @@ export function SettingsPanel({
         <label className="field">
           <span>Date format</span>
           <select
-            value={draft.dateFormat}
-            onChange={(e) => set("dateFormat", e.target.value as Settings["dateFormat"])}
+            value={settings.dateFormat}
+            onChange={(e) => live("dateFormat", e.target.value as Settings["dateFormat"])}
           >
             {DATE_FORMATS.map((d) => (
               <option key={d.id} value={d.id}>
@@ -101,16 +116,16 @@ export function SettingsPanel({
           <label className="field-check">
             <input
               type="checkbox"
-              checked={draft.clock24h}
-              onChange={(e) => set("clock24h", e.target.checked)}
+              checked={settings.clock24h}
+              onChange={(e) => live("clock24h", e.target.checked)}
             />
             <span>24-hour clock</span>
           </label>
           <label className="field-check">
             <input
               type="checkbox"
-              checked={draft.showSeconds}
-              onChange={(e) => set("showSeconds", e.target.checked)}
+              checked={settings.showSeconds}
+              onChange={(e) => live("showSeconds", e.target.checked)}
             />
             <span>Show seconds</span>
           </label>

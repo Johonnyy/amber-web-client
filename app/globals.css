@@ -49,23 +49,22 @@ body {
   overflow: hidden;
   background: var(--bg);
   font-family: var(--font-app, var(--font-geist-sans)), system-ui, sans-serif;
+  /* Kiosk/voice UI — nothing on the main screen should be selectable or
+     long-press-callout-able. The settings inputs re-enable text selection. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.settings input,
+.settings textarea,
+.settings select {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* The themed background lives in .fx (see "background effects" + "themes"). */
 
-/* ─────────────────────────── top bar ─────────────────────────── */
-.topbar {
-  position: relative;
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  transition: opacity 0.8s ease;
-}
-.topbar[data-active="true"] {
-  opacity: 0.4;
-}
-
+/* ─────────────────────────── connection pill (shared by stat row) ─────────────────────────── */
 .conn {
   display: inline-flex;
   align-items: center;
@@ -91,21 +90,6 @@ body {
 }
 .conn--error {
   color: var(--danger);
-}
-
-.gear {
-  appearance: none;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 1.2rem;
-  cursor: pointer;
-  opacity: 0.5;
-  transition: opacity 0.2s ease, transform 0.4s ease;
-}
-.gear:hover {
-  opacity: 1;
-  transform: rotate(45deg);
 }
 
 /* ─────────────────────────── home (clock + orb) ─────────────────────────── */
@@ -286,19 +270,6 @@ body {
   }
 }
 
-.orb-label {
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 0.78rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  transition: color 0.4s ease;
-}
-.orb-label[data-phase="listening"],
-.orb-label[data-phase="speaking"] {
-  color: var(--amber);
-}
-
 /* ─────────────────────────── wake CTA (pre-activation) ─────────────────────────── */
 .wake-cta {
   position: relative;
@@ -470,25 +441,55 @@ body {
   text-align: center;
 }
 
-/* ─────────────────────────── hint ─────────────────────────── */
-.hint {
+/* ─────────────────────────── stat row ─────────────────────────── */
+.statrow {
   position: absolute;
   bottom: clamp(0.8rem, 2.5vw, 1.6rem);
   left: 0;
   right: 0;
-  text-align: center;
-  z-index: 1;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem 1.4rem;
+  padding: 0 1rem;
+  opacity: 0.62;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+/* Dim — not gone — while a turn is on screen, so it stays ambient. */
+.statrow[data-active="true"] {
+  opacity: 0.22;
+}
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.68rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
-  opacity: 0.4;
-  transition: opacity 0.6s ease;
+  white-space: nowrap;
 }
-.hint[data-active="true"] {
-  opacity: 0;
-  pointer-events: none;
+.stat-key {
+  opacity: 0.55;
+}
+.stat--mic {
+  color: var(--ok);
+}
+.stat-mic-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  animation: mic-pulse 1.8s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.1); }
 }
 
 /* ─────────────────────────── self-update overlay ─────────────────────────── */
@@ -685,7 +686,8 @@ body {
   .fx-grid,
   .fx-stars i,
   .fx-scan,
-  .fx-base {
+  .fx-base,
+  .stat-mic-dot {
     animation: none !important;
   }
 }
@@ -810,13 +812,18 @@ body {
   opacity: 0.7;
 }
 .fx-stars i:nth-child(3) {
-  /* nebula glow */
+  /* galaxy / nebula — drifting clouds of violet, indigo and teal that slowly
+     shift hue, so it reads as deep-space gas rather than a flat gradient. */
   background:
-    radial-gradient(40% 50% at 30% 35%, color-mix(in srgb, var(--amber) 40%, transparent), transparent 70%),
-    radial-gradient(45% 40% at 75% 70%, color-mix(in srgb, var(--amber-deep) 35%, transparent), transparent 70%);
-  filter: blur(30px);
-  opacity: 0.7;
-  animation: nebula 24s ease-in-out infinite;
+    radial-gradient(46% 56% at 26% 30%, rgba(150, 92, 240, 0.6), transparent 72%),
+    radial-gradient(50% 46% at 76% 64%, rgba(52, 132, 230, 0.55), transparent 74%),
+    radial-gradient(40% 34% at 56% 46%, rgba(72, 214, 200, 0.42), transparent 72%),
+    radial-gradient(72% 50% at 50% 96%, rgba(96, 110, 240, 0.5), transparent 78%),
+    radial-gradient(34% 30% at 84% 22%, rgba(232, 96, 200, 0.34), transparent 72%);
+  filter: blur(46px) saturate(1.35);
+  opacity: 0.92;
+  animation: nebula 26s ease-in-out infinite,
+    nebula-hue 34s ease-in-out infinite alternate;
 }
 .fx[data-intense="true"] .fx-stars i:nth-child(3) {
   opacity: 1;
@@ -826,7 +833,65 @@ body {
 }
 @keyframes nebula {
   0%, 100% { transform: scale(1) translate(0, 0); }
-  50% { transform: scale(1.15) translate(2vw, -1vh); }
+  50% { transform: scale(1.16) translate(2vw, -1vh); }
+}
+@keyframes nebula-hue {
+  from { filter: blur(42px) saturate(1.12) hue-rotate(-20deg); }
+  to { filter: blur(42px) saturate(1.32) hue-rotate(20deg); }
+}
+
+/* canvas starfield (space) — painted in tree order between the star/nebula
+   layers and the vignette (no z-index), so the vignette still darkens the edges. */
+.fx > .fx-canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* — synthwave: banded setting sun + neon horizon — */
+.fx-sun i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(62vh, 78vw);
+  height: min(62vh, 78vw);
+  transform: translate(-50%, -64%);
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(#ffe85a 0%, #ff9a4d 28%, #ff52c8 60%, #b41cff 100%);
+  filter: drop-shadow(0 0 60px rgba(255, 82, 200, 0.45));
+  opacity: 0.92;
+}
+/* venetian bands cut into the lower half of the sun (bg-coloured gaps) */
+.fx-sun i::after {
+  content: "";
+  position: absolute;
+  left: -2%;
+  right: -2%;
+  bottom: 0;
+  height: 52%;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 6px,
+    var(--bg) 6px,
+    var(--bg) 11px
+  );
+}
+/* neon horizon line where the sky meets the grid */
+.fx-sun::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--amber), var(--amber-bright), var(--amber), transparent);
+  box-shadow: 0 0 14px var(--amber), 0 0 34px color-mix(in srgb, var(--amber-bright) 70%, transparent);
+  opacity: 0.85;
 }
 
 /* — CRT scanlines (retro + terminal) — */
@@ -919,9 +984,14 @@ body {
   background: linear-gradient(#1a012e 0%, #2a0540 45%, #45086b 100%);
 }
 [data-theme="retro"] .fx-grid { display: block; }
+[data-theme="retro"] .fx-sun { display: block; }
 [data-theme="retro"] .fx-scan { display: block; }
+/* the grid runs faster while Amber is speaking — the world reacts to her voice */
+[data-theme="retro"] .fx[data-phase="speaking"] .fx-grid {
+  animation-duration: 0.7s;
+}
 [data-theme="retro"] .clock-time {
-  text-shadow: 0 0 8px var(--amber), 0 0 24px var(--amber);
+  text-shadow: 0 0 8px var(--amber), 0 0 24px var(--amber), 0 0 48px var(--amber-bright);
 }
 [data-theme="retro"] .amber-line {
   text-shadow: 0 0 10px var(--amber-bright), 0 0 30px color-mix(in srgb, var(--amber-bright) 60%, transparent);
@@ -1118,3 +1188,387 @@ body {
 .field select:focus {
   border-color: color-mix(in srgb, var(--amber) 55%, transparent);
 }
+
+/* ═══════════════════════════ display surface (rich widgets) ═══════════════════════════
+   Amber's screen: cards, lists, tables, weather, stats, images, maps. Rendered in
+   the conversation surface instead of streamed text (the audio still plays). All
+   colours key off the theme tokens, so every theme styles widgets for free. */
+
+/* When widgets are showing, the conversation surface scrolls top-aligned and
+   widens, rather than vertically-centring a single line of text. */
+.convo-full[data-has-widgets="true"] {
+  align-items: start;
+  overflow-y: auto;
+}
+.convo-full[data-has-widgets="true"] .convo-content {
+  max-width: 74rem;
+  text-align: left;
+  align-items: stretch;
+  gap: clamp(0.8rem, 2.5vh, 1.6rem);
+}
+.convo-full[data-has-widgets="true"] .you-line {
+  text-align: center;
+}
+
+.d-surface {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 3vh, 1.8rem);
+  width: 100%;
+  animation: rise-in 0.5s ease both;
+}
+.d-block {
+  width: 100%;
+}
+.d-title {
+  margin: 0 0 0.8rem;
+  font-size: clamp(1rem, 2.4vw, 1.4rem);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--amber-bright);
+  text-shadow: 0 0 24px var(--glow);
+}
+
+/* — shared bits — */
+.d-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.d-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+.d-badge--neutral { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text-dim); }
+.d-badge--accent { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber-bright); border-color: color-mix(in srgb, var(--amber) 40%, transparent); }
+.d-badge--positive { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.d-badge--warning { background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); }
+.d-badge--danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+
+.d-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.d-field {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  font-size: 0.92rem;
+}
+.d-field-label {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+.d-field-value {
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.d-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.d-thumb--emoji {
+  font-size: 2rem;
+  line-height: 1;
+}
+.d-thumb--img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+/* — cards — */
+.d-cards {
+  display: grid;
+  gap: 0.8rem;
+}
+.d-cards--grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.d-cards--list {
+  grid-template-columns: 1fr;
+}
+.d-card {
+  display: flex;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  backdrop-filter: blur(6px);
+}
+.d-card-media {
+  display: flex;
+  align-items: flex-start;
+}
+.d-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+}
+.d-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.d-card-title {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.d-card-sub {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.d-card-foot {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  opacity: 0.85;
+}
+
+/* — list — */
+.d-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.d-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+}
+.d-list-num {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.78rem;
+  color: var(--amber-bright);
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+}
+.d-list-emoji { font-size: 1.2rem; }
+.d-list-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 10px var(--glow);
+}
+.d-list-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.d-list-main { color: var(--text); }
+.d-list-sub { font-size: 0.8rem; color: var(--text-dim); }
+
+/* — table — */
+.d-table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+.d-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.d-table th,
+.d-table td {
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  white-space: nowrap;
+}
+.d-table th {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+.d-table td { color: var(--text); font-variant-numeric: tabular-nums; }
+.d-table tbody tr:last-child td { border-bottom: none; }
+.d-table tbody tr:hover td { background: color-mix(in srgb, var(--amber) 7%, transparent); }
+
+/* — key-values — */
+.d-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+.d-kv .d-field {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+}
+.d-kv .d-field:last-child { border-bottom: none; }
+
+/* — weather — */
+.d-weather {
+  padding: 1.2rem 1.4rem;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 20%, transparent);
+}
+.d-weather-hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.d-weather-emoji { font-size: clamp(2.6rem, 7vw, 4rem); line-height: 1; }
+.d-weather-now { display: flex; flex-direction: column; }
+.d-weather-temp {
+  font-size: clamp(2.2rem, 6vw, 3.4rem);
+  font-weight: 300;
+  line-height: 1;
+  color: var(--text);
+  text-shadow: 0 0 30px var(--glow);
+}
+.d-weather-loc { font-size: 1rem; color: var(--amber-bright); margin-top: 0.2rem; }
+.d-weather-cond { font-size: 0.9rem; color: var(--text-dim); }
+.d-weather-feels { font-size: 0.8rem; color: var(--text-dim); opacity: 0.8; }
+.d-weather-stats { margin-top: 1rem; }
+.d-forecast {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+.d-forecast-day {
+  flex: 1;
+  min-width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.6rem 0.4rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.d-forecast-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); }
+.d-forecast-emoji { font-size: 1.4rem; }
+.d-forecast-temps { display: flex; gap: 0.4rem; font-size: 0.85rem; }
+.d-forecast-hi { color: var(--text); }
+.d-forecast-lo { color: var(--text-dim); }
+
+/* — stats — */
+.d-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.7rem;
+}
+.d-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+.d-stat-emoji { font-size: 1.3rem; }
+.d-stat-value {
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+  font-weight: 600;
+  line-height: 1.05;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.d-stat-label { font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.d-stat--positive .d-stat-value { color: var(--ok); }
+.d-stat--danger .d-stat-value { color: var(--danger); }
+.d-stat--accent .d-stat-value { color: var(--amber-bright); }
+
+/* — images — */
+.d-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.7rem;
+}
+.d-figure { margin: 0; }
+.d-image {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  display: block;
+  object-fit: cover;
+}
+.d-caption {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* — map — */
+.d-map {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+}
+.d-map-frame {
+  display: block;
+  width: 100%;
+  height: clamp(220px, 38vh, 360px);
+  border: 0;
+  filter: saturate(0.92);
+}
+.d-map-label {
+  position: absolute;
+  left: 0.7rem;
+  bottom: 0.7rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(4px);
+}
+.d-map--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+.d-map-pin { font-size: 2.2rem; }
+.d-map-name { font-size: 1.1rem; color: var(--text); }
+.d-map-link { font-size: 0.85rem; color: var(--amber-bright); text-decoration: none; }
+.d-map-link:hover { text-decoration: underline; }
+
+/* Light theme: reply widgets read on a bright backdrop without heavy glow. */
+[data-theme="light"] .d-title { text-shadow: none; }
